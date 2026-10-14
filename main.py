@@ -16,7 +16,7 @@ from astrbot.api.star import Context, Star, register, StarTools
 
 from .api.bgm_api import BGMAPI
 from .api.bilibili_api import BilibiliAPI
-from .api.date_utils import get_current_date_info
+from .api.date_utils import get_current_date_info, get_current_datetime
 from .api.hitokoto_api import HitokotoAPI
 from .api.holiday_api import HolidayAPI
 from .api.ithome_rss import ITHomeRSS
@@ -421,8 +421,8 @@ html, body {
                     )
                     push_time = time(8, 0)
 
-                now = datetime.now()
-                next_push = datetime.combine(now.date(), push_time)
+                now = get_current_datetime()
+                next_push = datetime.combine(now.date(), push_time, tzinfo=now.tzinfo)
 
                 if next_push <= now:
                     next_push += timedelta(days=1)
@@ -559,8 +559,7 @@ html, body {
         """使用 AI 生成个性化的推送文本"""
         try:
             # 获取当前时间和节日信息
-            from datetime import datetime
-            now = datetime.now()
+            now = get_current_datetime()
             hour = now.hour
             date_info = get_current_date_info()
             
@@ -658,10 +657,10 @@ html, body {
         if moyu_list and len(moyu_list) > 0:
             holiday = moyu_list[0]
             if holiday.get('name'):
-                days_left = holiday.get('days', '')
-                if days_left == '0':
+                days_left = holiday.get('days_left')
+                if days_left == 0:
                     return f"📰 {holiday['name']}快乐！日报送上~\n"
-                elif days_left and int(days_left) <= 3:
+                elif isinstance(days_left, int) and 0 < days_left <= 3:
                     return f"📰 距离{holiday['name']}还有{days_left}天！日报来啦~\n"
         
         # 随机选择一个问候语

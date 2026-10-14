@@ -2,10 +2,18 @@
 日期工具模块
 用于获取当前日期、星期、农历等信息
 """
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 # 星期映射
+BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def get_current_datetime() -> datetime:
+    """日报日期、节日倒计时和定时推送统一使用北京时间。"""
+    return datetime.now(BEIJING_TZ)
+
+
 WEEKDAYS_CN = {
     0: '星期一',
     1: '星期二',
@@ -28,7 +36,7 @@ def get_current_date_info() -> Dict[str, str]:
             'cn_date_str': '腊月初五'
         }
     """
-    now = datetime.now()
+    now = get_current_datetime()
     
     # 星期
     week_cn = WEEKDAYS_CN[now.weekday()]
@@ -59,9 +67,14 @@ def get_lunar_date(date_obj: datetime) -> str:
     """
     try:
         from zhdate import ZhDate
+        # zhdate 内部使用无时区 datetime 运算。
+        if date_obj.tzinfo is not None:
+            date_obj = date_obj.astimezone(BEIJING_TZ).replace(tzinfo=None)
         lunar = ZhDate.from_datetime(date_obj)
         lunar_months = ['', '正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊']
         month_name = lunar_months[lunar.lunar_month] if lunar.lunar_month < len(lunar_months) else str(lunar.lunar_month)
+        if lunar.leap_month:
+            month_name = "闰" + month_name
         if lunar.lunar_day == 1:
             day_name = '初一'
         elif lunar.lunar_day <= 10:

@@ -245,8 +245,10 @@ body {
 
 .moyu-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 7px;
+  column-gap: 4px;
+  row-gap: 0;
   color: var(--text-main);
   font-family: var(--font-body);
   font-weight: 400;
@@ -257,6 +259,7 @@ body {
 .moyu-item .holiday-name {
   color: var(--text-accent);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .moyu-item .holiday-days {
@@ -264,6 +267,15 @@ body {
   display: inline-block;
   text-align: center;
   font-weight: 700;
+}
+
+.moyu-item .holiday-kind {
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.moyu-item .holiday-countdown {
+  white-space: nowrap;
 }
 
 .bili-list {
@@ -439,11 +451,14 @@ body {
                     <div class="moyu-list">
                         {% for item in moyu_list %}
                         <div class="moyu-item">
+                            {% if item.days_left == 0 %}
+                            <span>今天是</span>
+                            <span class="holiday-name">{{ item.name }}{% if item.kind == 'festival' %}<small class="holiday-kind">（节日）</small>{% endif %}</span>
+                            {% else %}
                             <span>距离</span>
-                            <span class="holiday-name">{{ item.name }}</span>
-                            <span>还剩</span>
-                            <span class="holiday-days">{{ item.days_left }}</span>
-                            <span>天</span>
+                            <span class="holiday-name">{{ item.name }}{% if item.kind == 'festival' %}<small class="holiday-kind">（节日）</small>{% endif %}</span>
+                            <span class="holiday-countdown">还剩 <span class="holiday-days">{{ item.days_left }}</span> 天</span>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
