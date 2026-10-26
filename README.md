@@ -30,10 +30,9 @@ git clone https://github.com/luminacry/astrbot_plugin_zhenxunribao
 ```bash
 cd astrbot_plugin_zhenxunribao
 pip install -r requirements.txt
-playwright install chromium
 ```
 
-3. 在 AstrBot WebUI 的插件管理中启用插件
+3. 在 AstrBot 中配置可用的文本转图片服务（t2i-service），然后在插件管理中启用插件。插件使用框架的 `html_render`，不再自行启动 Chromium。
 
 ## ⚙️ 配置
 
@@ -46,7 +45,7 @@ playwright install chromium
 | `max_news_count` | int | `5` | 新闻最大显示数量，建议设置为5-10之间 |
 | `max_hotword_count` | int | `4` | B站热点最大显示数量，建议设置为4-8之间 |
 | `max_holiday_count` | int | `3` | 摸鱼日历最大显示数量，建议设置为3-5之间 |
-| `render_dpr` | int | `5` | 渲染清晰度（DPR），越大越清晰但图片更大更慢，建议 3-6 |
+| `render_dpr` | int | `5` | 远程渲染档位：`1` 对应 normal（1.0 倍），`2` 及以上对应 ultra（1.8 倍）；兼容原配置 |
 | `enable_scheduled_push` | bool | `false` | 是否启用定时推送，启用后会在指定时间自动推送日报到配置的群组 |
 | `scheduled_push_time` | str | `"08:00"` | 定时推送时间，HH:MM格式（24小时制），例如：`08:00` 表示每天早上8点 |
 | `scheduled_push_groups` | list | `[]` | 定时推送目标群组列表，直接填写群号即可，如：`["957880653", "123456789"]` |
@@ -83,13 +82,9 @@ playwright install chromium
 
 - `aiohttp>=3.8.0` - 异步HTTP请求库
 - `jinja2>=3.0.0` - HTML模板渲染引擎
-- `playwright>=1.40.0` - 浏览器自动化，用于HTML转图片
 - `zhdate>=0.1` - 农历日期计算支持
 
-安装 Playwright 浏览器：
-```bash
-playwright install chromium
-```
+日报图片由 AstrBot 配置的文本转图片服务生成，需要该服务可用。t2i-service 的部署与配置见 [官方仓库](https://github.com/AstrBotDevs/astrbot-t2i-service)。浏览器运行在渲染服务端，插件端无需安装 Playwright 或 Chromium。
 
 ## 🖋 字体说明
 
@@ -99,14 +94,14 @@ playwright install chromium
 ## ⚠️ 注意事项
 
 1. **API Token 配置**：部分功能（节假日、今日一言、早报）需要配置 ALAPI Token，否则相关数据可能无法获取
-2. **Playwright 安装**：首次使用需要安装 Playwright 的 Chromium 浏览器，执行 `playwright install chromium`
+2. **渲染服务配置**：需要配置可访问的 AstrBot 文本转图片服务。渲染服务不可用时会报告生成失败，插件不会回退到本地浏览器。
 3. **网络环境**：插件需要访问多个外部API，请确保网络连接正常
 4. **群组ID获取**：配置定时推送时，可以通过在目标群内发送 `/日报` 后查看日志获取正确的群组ID格式
 
 ## 🛠️ 技术实现
 
 - 使用 **Jinja2** 渲染HTML模板
-- 使用 **Playwright** 进行HTML到图片的转换，支持2倍分辨率高清渲染
+- 使用 AstrBot 的 **html_render** 将 HTML 发送到配置的 t2i-service 渲染为 PNG，固定 578px 视口宽度并截取完整页面
 - 使用 **aiohttp** 异步获取多个数据源
 - 资源文件通过 Base64 编码嵌入HTML，确保图片和字体正常显示
 

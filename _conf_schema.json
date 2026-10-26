@@ -33,7 +33,7 @@
   "render_dpr": {
     "description": "渲染清晰度（DPR）",
     "type": "int",
-    "hint": "数值越大越清晰，但生成更慢、图片更大；建议 3-6。",
+    "hint": "远程渲染档位映射：1 为 normal（1.0 倍），2 及以上为 ultra（1.8 倍）；兼容原有配置。",
     "default": 5
   },
   "enable_scheduled_push": {

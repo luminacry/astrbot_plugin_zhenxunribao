@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## Unreleased
+
+- 改用 AstrBot `html_render` 生成日报 PNG，避免插件重复启动本地 Chromium。
+- 固定远程截图视口为 578px，保留整页截图，并将原 DPR 配置映射到服务支持的档位。
+- 移除插件端 Playwright 依赖，补充渲染服务配置说明。
+- 通过模板参数传递已渲染的 HTML，保留新闻中可能出现的 Jinja 标记。
+
 ## 1.2.0 - 2026-03-10
 
 ### Added

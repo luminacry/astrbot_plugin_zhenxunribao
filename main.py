@@ -2,13 +2,10 @@
 import base64
 import os
 import re
-import tempfile
 from datetime import datetime, timedelta, time
-from urllib.request import pathname2url
 
 import aiohttp
 from jinja2 import Template
-from playwright.async_api import async_playwright
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import MessageChain, filter, AstrMessageEvent
@@ -190,7 +187,7 @@ html, body {
 """
         rendered_html = rendered_html.replace("</style>", style_fix + "</style>", 1)
 
-        image_path = await self._render_html_with_playwright(rendered_html)
+        image_path = await self._render_daily_html(rendered_html)
         logger.info("日报生成成功")
         return image_path
     
@@ -301,105 +298,38 @@ html, body {
 
         return html_template
 
-    async def _render_html_with_playwright(
-        self, html_content: str, output_path: str | None = None
-    ) -> str:
-        """Render HTML to PNG using Playwright.
+    async def _render_daily_html(self, html_content: str) -> str:
+        """通过框架的渲染服务生成 PNG，避免插件反复启动本地 Chromium。"""
+        # DPR 档位映射（t2i-service 只支持三档，最高 1.8）
+        dpr = float(self.config.get("render_dpr", 2))
+        if dpr >= 1.8:
+            dpr_level = "ultra"
+        elif dpr >= 1.3:
+            dpr_level = "high"
+        else:
+            dpr_level = "normal"
 
-        提升清晰度的关键：使用 BrowserContext 的 device_scale_factor (DPR)。
-        """
-        temp_html_path = None
-        context = None
+        options = {
+            "full_page": True,
+            "type": "png",
+            "viewport_width": 578,  # 与模板 .wrapper 宽度一致，避免右半空白
+            "device_scale_factor_level": dpr_level,
+            "timeout": 60000,
+        }
+        logger.info(f"调用远程 t2i-service 渲染日报 (DPR档位={dpr_level})...")
+
         try:
-            temp_dir = tempfile.gettempdir()
-            temp_html_path = os.path.join(
-                temp_dir,
-                f"ripan_daily_{os.getpid()}_{hash(html_content) % 100000}.html",
+            result_path = await self.html_render(
+                "{{ html_content | safe }}",
+                {"html_content": html_content},  # 避免新闻文本中的 Jinja 标记被二次解析
+                return_url=False,  # 返回本地文件路径，与原有契约一致
+                options=options,
             )
-            with open(temp_html_path, "w", encoding="utf-8") as f:
-                f.write(html_content)
-
-            if output_path is None:
-                output_path = temp_html_path.replace(".html", ".png")
-
-            # DPR (device scale factor): 越大越清晰，但图片更大、渲染更慢
-            dpr = int(self.config.get("render_dpr", 4))
-            dpr = max(1, min(dpr, 6))
-
-            async with async_playwright() as p:
-                logger.info("启动Playwright浏览器...")
-                browser = await p.chromium.launch(headless=True)
-                try:
-                    # 用 context 设置 DPR 提升截图清晰度
-                    context = await browser.new_context(
-                        viewport={"width": 1156, "height": 1000},
-                        device_scale_factor=dpr,
-                    )
-                    page = await context.new_page()
-
-                    file_url = f"file://{pathname2url(temp_html_path)}"
-                    await page.goto(file_url, wait_until="networkidle")
-                    await page.wait_for_timeout(2000)
-
-                    wrapper = await page.query_selector(".wrapper")
-                    if not wrapper:
-                        raise Exception("未找到.wrapper元素")
-
-                    box = await wrapper.bounding_box()
-                    if not box:
-                        raise Exception("无法获取.wrapper元素的bounding box")
-
-                    wrapper_width = int(box["width"])
-                    wrapper_height = int(box["height"])
-
-                    # 动态设置 viewport，避免超长内容截图不完整（留余量）
-                    viewport_height = max(int(wrapper_height * 1.2), 1000)
-                    viewport_width = 1156
-                    await page.set_viewport_size(
-                        {"width": viewport_width, "height": viewport_height}
-                    )
-
-                    # viewport 调整后重新查询元素
-                    wrapper = await page.query_selector(".wrapper")
-                    if not wrapper:
-                        raise Exception("未找到.wrapper元素(viewport调整后)")
-
-                    logger.info(
-                        f"Wrapper宽高: {wrapper_width}x{wrapper_height}, "
-                        f"viewport: {viewport_width}x{viewport_height}, DPR={dpr}"
-                    )
-
-# 使用 clip 精确裁剪，避免 body absolute 定位导致的大片空白
-                    clip = {
-                        "x": int(box["x"]),
-                        "y": int(box["y"]),
-                        "width": int(box["width"]),
-                        "height": int(box["height"]),
-                    }
-                    await page.screenshot(
-                        path=output_path,
-                        type="png",
-                        clip=clip,
-                    )
-
-                    logger.info(f"截图完成: {output_path}")
-                    return output_path
-                finally:
-                    try:
-                        if context:
-                            await context.close()
-                    finally:
-                        await browser.close()
-
+            logger.info(f"远程渲染完成: {result_path}")
+            return result_path
         except Exception as e:
-            logger.error(f"Playwright渲染失败: {e}", exc_info=True)
+            logger.error(f"远程 t2i-service 渲染失败: {e}", exc_info=True)
             raise
-        finally:
-            if temp_html_path and os.path.exists(temp_html_path):
-                try:
-                    os.remove(temp_html_path)
-                except Exception as e:
-                    logger.warning(f"删除临时HTML文件失败: {e}")
 
     async def _scheduled_push_task(self):
         while True:
